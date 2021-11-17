@@ -1,0 +1,16 @@
+base
+linux
+base-devel
+linux-headers
+zsh
+zsh-syntax-highlighting
+zsh-history-substring-search
+#grml-zsh-config
+vim
+htop
+networkmanager
+#btrfs-progs
+#ntfs-3g
+#lvm2
+terminus-font
+
