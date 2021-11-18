@@ -14,6 +14,10 @@ if [ -f "${SCRIPT_DIR}/$rcfile" ]; then
     source "${SCRIPT_DIR}/$rcfile"
 fi
 
+if [ -f "${SCRIPT_DIR}/common.sh" ]; then
+    source "${SCRIPT_DIR}/common.sh"
+fi
+
 
 start_menu() {
     if [ "${1}" = "" ]; then
@@ -63,7 +67,7 @@ start_menu() {
 menu_editrc() {
     $EDITOR "${SCRIPT_DIR}/$rcfile"
     source "${SCRIPT_DIR}/$rcfile"
-    set_keymap
+    set_console_keymap
     set_locale
 
 }
@@ -192,31 +196,6 @@ create_default_parts() {
     efipart="${part_pre}1" && efilabel="EFI"
     bootpart="${part_pre}2" && bootpartfs="btrfs" && bootlabel="boot"
     rootpart="${part_pre}${rootnum}" && rootpartfs="btrfs" && rootlabel="arch"
-}
-
-set_keymap() {
-    ekko "Setting console keymap and font..."
-    setfont $FONT
-    loadkeys $KEYMAP
-}
-
-set_locale() {
-    ekko "Setting locales..."
-    for locale in "${LOCALES[@]}"; do
-        sed -i "s/^#$locale/$locale/" /etc/locale.gen
-    done
-    ekko "> locale-gen"
-    locale-gen
-    timedatectl --no-ask-password set-timezone "$TIMEZONE"
-    timedatectl --no-ask-password set-ntp true
-    if [[ "$ZSH_VERSION" ]]; then
-        localectl --no-ask-password set-locale LANG="${LOCALES[1]}"
-        export LANG="${LOCALES[1]}"
-    else
-        localectl --no-ask-password set-locale LANG="${LOCALES[0]}"
-        export LANG="${LOCALES[0]}"
-    fi
-    pressanykey
 }
 
 prompt_wifi() {
@@ -350,23 +329,21 @@ configure_pacman() {
 }
 
 bootstrap_target() {
-pressanykey
     pkgs=($(cat "${SOURCE_DIR}/pacstrap.pkgs" | awk -F '#' '{print $1}'))
     pkgs+=($(echo $pkgsneeded))
-pressanykey
-    [[ "$PACCACHE" ]] && pacflags="$pacflags -c"
+
+    pacflags="$pacflags -c"
     ekko "Installing base system packages to new root..."
     pacstrap ${pacflags} /mnt "${pkgs[@]}" --needed --noconfirm
     genfstab -U /mnt >> /mnt/etc/fstab
 
     #>TODO copy script to /mnt/root
     cp -r ${SCRIPT_DIR} /mnt/root/arktik
-
-    # installbootloader
+    cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }
 
 main() {
-    set_keymap
+    set_console_keymap
     setlocale
 
     start_menu
@@ -397,5 +374,5 @@ DONTRUN() {
 #             (cfdisk,...)
 # format_parts
 # mount_parts
-# set_keymap
+# set_console_keymap
 # edit_
