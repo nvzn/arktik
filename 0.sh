@@ -28,10 +28,10 @@ start_menu() {
     options=()
     options+=("$txteditrc" "$EDITOR $rcfile")
     options+=("$txtdrives" "")
-    options+=("$txtlvm" "Logical Volume Management")
-    options+=("$txtluks" "")
-    options+=("$txtmount" "")
-    options+=("$txtstartinstall" "")
+    #options+=("$txtlvm" "Logical Volume Management")
+    #options+=("$txtluks" "")
+    #options+=("$txtmount" "")
+    #options+=("$txtstartinstall" "")
     sel=$(whiptail --backtitle "${apptitle}" --title "Main menu" --menu "" \
         --cancel-button "$txtexit" --default-item "${nextitem}" 0 0 0 \
         "${options[@]}" 3>&1 1>&2 2>&3)
@@ -45,6 +45,7 @@ start_menu() {
                 menu_drives
                 # nextitem="${txtlvm}"
             ;;
+            *) break ;;
             # "$txtlvm")
             #     nextitem="${txtluks}"
             # ;;
@@ -83,7 +84,9 @@ menu_drives() {
     IFS=$OIFS
     sel=$(whiptail --backtitle "${apptitle}" --title "$txtdrives" --menu "" \
         0 0 0 "${options[@]}" 3>&1 1>&2 2>&3)
-    menu_partition_mode $(echo ${sel%%\ *})
+    if [ "$?" = "0" ]; then
+        menu_partition_mode $(echo ${sel%%\ *})
+    fi
 }
 
 menu_partition_mode() {
@@ -153,7 +156,7 @@ auto_partition() {
 unmount_filesystem() {
     ekko "Unmounting everything on /mnt..."
     umount -R /mnt
-    local swapdev="$(lsblk -o PATH,MOUNTPOINTS | grep "\[SWAP\]")"
+    local swapdev="$(lsblk -o PATH,MOUNTPOINTS | grep "\[SWAP\]" | awk '{print $1}')"
     [[ $swapdev ]] && swapoff $swapdev
 }
 
@@ -299,9 +302,9 @@ configure_pacman() {
     # This makes it possible to change an option's value
     for opt in "${PACOPTS[@]}"; do
         for i in `seq 1 ${#opt}`; do
-            local mtch=$(cat /etc/pacman.conf | grep "^#${pacopt:0:$i}")
-            if [ "$(echo $mtch | wc -l)" == 1 ]; then
-                sed -i 's;^#${mtch}.*;${opt};' /etc/pacman.conf
+            local mtch="$(cat /etc/pacman.conf | grep "^#${opt:0:$i}")"
+            if [ "$(echo "$mtch" | wc -l)" == "1" ]; then
+                [[ "${mtch}" ]] && sed -i "s;^${mtch}.*;${opt};" /etc/pacman.conf
                 break
             fi
         done
@@ -313,32 +316,41 @@ configure_pacman() {
             if [[ -n "$CACHEUUID" ]]; then
                 DEVPATH=$(lsblk --output PATH,UUID | awk "/$CACHEUUID/ {print  \$1}")
                 if [[ "$DEVPATH" == "" ]]; then
-                    ekko_error "Cache device with UUID=$UUID not found!"
+                    ekko_error "Cache device with UUID=$CACHEUUID not found!"
                     retry=true
                     ekko_exit_continue "Press any key to retry, Esc key to exit"
                     if [ "$?" == "1"]; then
                         retry=false
                     fi
+		else
+		    ekko "Mounting cache device (UUID=$CACHEUUID) to /mnt$CACHEMOUNT..."
+                    mkdir -p "/mnt$CACHEMOUNT"
+                    mount "$DEVPATH" "/mnt$CACHEMOUNT"
                 fi
-                mkdir -p "/mnt/$CACHEMOUNT"
-                mount "$DEVPATH" "/mnt/$CACHEMOUNT"
             fi
-            sed -i "s|^\(#\(CacheDir    \)= .*\)|\1\n\2= /mnt$CACHEMOUNT|" /etc/pacman.conf
+	    ekko "Setting pacman CacheDir=/mnt$PACCACHE"
+            #sed -i "s|^\(#\(CacheDir    \)= .*\)|\1\n\2= /mnt$PACCACHE|" /etc/pacman.conf
+	    sed -i "s;^#\(CacheDir    \)= .*;\1= /mnt$PACCACHE;" /etc/pacman.conf
         fi
     done
 }
 
 bootstrap_target() {
-    pkgs=($(cat "${SOURCE_DIR}/pacstrap.pkgs" | awk -F '#' '{print $1}'))
+    pkgs=($(cat "${SCRIPT_DIR}/pacstrap.pkgs" | awk -F '#' '{print $1}'))
     pkgs+=($(echo $pkgsneeded))
 
     pacflags="$pacflags -c"
     ekko "Installing base system packages to new root..."
+    ekko "pacstrap ${pacflags} /mnt "${pkgs[@]}" --needed --noconfirm"
     pacstrap ${pacflags} /mnt "${pkgs[@]}" --needed --noconfirm
+    ekko "Generating fstab..."
     genfstab -U /mnt >> /mnt/etc/fstab
 
     #>TODO copy script to /mnt/root
-    cp -r ${SCRIPT_DIR} /mnt/root/arktik
+    ekko "Copying script files to /mnt/root/arktik..."
+    mkdir -p /mnt/root/arktik
+    cp -r ${SCRIPT_DIR}/* /mnt/root/arktik/
+    ekko "Copying host mirrorlist to new root..."
     cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }
 
@@ -349,7 +361,7 @@ main() {
     start_menu
 
     mount_parts
-    prompt_wifi
+    #prompt_wifi
     configure_pacman
     bootstrap_target
 }
@@ -358,7 +370,7 @@ main
 
 
 DONTRUN() {
-    ;
+    asdfasdfasdf=$1
     # dmsetup ls --target crypt
     # curl -LJO https:/.../.git LJO
     #https://github.com/MatMoul/archfi/blob/master/archfi

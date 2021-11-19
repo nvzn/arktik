@@ -27,14 +27,17 @@ add_user_passwd() {
 
 set_users() {
     # Enable sudo group
+    ekko "Enabling sudo group..."
     sed -i 's/^# %sudo[[:blank:]]\+ALL=(ALL) ALL/%sudo ALL=(ALL) ALL/' /etc/sudoers
     groupadd sudo
 
     # Change default shell
+    ekko "Setting default shell to /bin/zsh..."
     chsh -s /bin/zsh root
     sed -i 's;SHELL=.*;SHELL=/bin/zsh' /etc/default/useradd
 
     # Set passwords and users
+    ekko "Setting up users and passwords"
     set_root_passwd
     add_user_passwd nvzn sudo
 }
